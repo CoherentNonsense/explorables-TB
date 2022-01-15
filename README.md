@@ -2,6 +2,8 @@
 
 Create structures that generate custom maps when entered.
 
+<img src="misc/recording.gif">
+
 ## Example usage
 
 1. Create a structure using [the-travelers-plus](https://github.com/LightningWB/the-travelers-plus)
