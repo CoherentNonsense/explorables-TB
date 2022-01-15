@@ -10,6 +10,8 @@ Create structures that generate custom maps when entered.
 
 2. Add an explorable blueprint to the structure so you can enter it with emit("explorables", "load", [STRUCTURE_ID], [BLUEPRINT_OBJ])
 
+BLUEPRINT_OBJ can either be a blueprint object or a function that returns a blueprint object. The function is called for every structure placed so you can procedurally generate a blueprint per structure.
+
 ```js
 const { emit, makePlugin } = global.plugins;
 

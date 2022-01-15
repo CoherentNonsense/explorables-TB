@@ -48,6 +48,11 @@ async function generateExplorable(structure, blueprint)
   };
 
   // Place blueprint
+  // Blueprint could be a generator function
+  if (typeof blueprint === "function")
+  {
+    blueprint = blueprint();
+  }
   const worldPositionX = (-worldEdge + (200 * explorable.x));
   const worldPositionY = (worldEdge + (200 * explorable.y));
   const chunkCoords = chunks.toChunkCoords(worldPositionX, worldPositionY);
@@ -189,8 +194,12 @@ plugin.on("travelers::onPlayerStep", async (player, cancel) => {
     }
     player.public.x = targetLoc.x;
     player.public.y = targetLoc.y;
+
+    if(player.public.state === 'travel')
+    {
+      emit('travelers', 'stopPlayerMovement', player);
+    }
     player.addPropToQueue("x", "y");
-  
     cancel.set(true);
   }
 });
