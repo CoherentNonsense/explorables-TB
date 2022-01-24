@@ -35,6 +35,8 @@ const blueprint = {
     0, -1, -1, -1, 0,
     0,  0,  0,  0, 0
   ],
+  // Resets the explorable after a set amount of time (ms)
+  resetTimer: 1000
 };
 
 plugin.on("ready", () => {
@@ -82,5 +84,32 @@ plugin.on("ready", () => {
   // Make the structure explorable
   emit("explorables", "load", "home", blueprint);
 });
+
+```
+
+## Procudural Explorables
+
+```js
+// A blueprint generator
+// Takes in the world coordinates of the explorable
+function makeBlueprint(x, y)
+{
+  // Example class that generates an explorable
+  const map = new ProcMap(x, y);
+  const blueprint = {
+    width: map.width,
+    height: map.height,
+    pallete: ["wood_block", "exit"],
+    layout: map.grid,
+  };
+
+  return blueprint;
+}
+
+const blueprint = {
+  type: "dungeon",
+  resetTimer: 1000,
+  generate: makeBlueprint
+};
 
 ```
