@@ -36,25 +36,33 @@ async function generateExplorable(structure, blueprint)
     explorableId = storage.unused.pop();
   }
 
-  // Create explorable
-  const explorable = {
-    type: blueprint.type,
-    x: explorableId % 1000,
-    y: Math.floor(explorableId / 1000),
-    entranceX: 0,
-    entranceY: 0,
-    exitToX: structure.public.x,
-    exitToY: structure.public.y
-  };
+  const xPosition = explorableId % 1000;
+  const yPosition = Math.floor(explorableId / 1000);
+  const worldPositionX = (-worldEdge + (200 * xPosition));
+  const worldPositionY = (worldEdge + (200 * yPosition));
 
   // Place blueprint
   // Blueprint could be a generator function
-  if (typeof blueprint === "function")
+  if (typeof blueprint.generate === "function")
   {
-    blueprint = blueprint();
+    blueprint = {
+      ...blueprint,
+      ...blueprint.generate(worldPositionX, worldPositionY),
+    };
   }
-  const worldPositionX = (-worldEdge + (200 * explorable.x));
-  const worldPositionY = (worldEdge + (200 * explorable.y));
+
+  // Create explorable
+  const explorable = {
+    type: blueprint.type,
+    x: xPosition,
+    y: yPosition,
+    entranceX: 0,
+    entranceY: 0,
+    exitToX: structure.public.x,
+    exitToY: structure.public.y,
+    playerCount: 0,
+  };
+  
   const chunkCoords = chunks.toChunkCoords(worldPositionX, worldPositionY);
 
   if (!chunks.isChunkCoordsLoaded(chunkCoords.x, chunkCoords.y))
@@ -111,14 +119,10 @@ async function generateExplorable(structure, blueprint)
   return explorableId;
 }
 
-async function deleteExplorable(structure)
+async function deleteExplorable(explorableId)
 {
-  const { explorableId } = structure.private;
   const explorable = storage.explorables[explorableId];
-  console.log(explorable);
   if (!explorable)return;
-  storage.explorables[explorableId] = null;
-  storage.unused.push(explorableId);
   const worldPositionX = (-worldEdge + (200 * explorable.x));
   const worldPositionY = (worldEdge + (200 * explorable.y));
   const chunkCoords = chunks.toChunkCoords(worldPositionX, worldPositionY);
@@ -128,17 +132,17 @@ async function deleteExplorable(structure)
     await chunks.loadChunk(chunkCoords.x, chunkCoords.y);
   }
   const chunk = chunks.getChunkFromChunkCoords(chunkCoords.x, chunkCoords.y);
-  const blueprint = blueprints[explorable.type];
-
-  for (let x = worldPositionX; x < worldPositionX + blueprint.width + 2; ++x)
+  for (let x = worldPositionX; x < worldPositionX + 100; ++x)
   {
-    for (let y = worldPositionY; y < worldPositionY + blueprint.height + 2; ++y)
+    for (let y = worldPositionY; y < worldPositionY + 100; ++y)
     {
       chunk[x + "|" + y] = undefined;
     }
   }
 
   // save
+  storage.explorables[explorableId] = null;
+  storage.unused.push(explorableId);
   plugin.setStorage(storage);
 }
 
@@ -158,7 +162,7 @@ plugin.on("explorables::load", (structureId, blueprint) => {
   }, 0);
 
   plugin.on(`travelers::structureBroke::${structureId}`, (structure) => {
-    deleteExplorable(structure);
+    deleteExplorable(structure.private.explorableId);
   }, 0);
 }, 0);
 
@@ -174,17 +178,41 @@ plugin.on("travelers::onPlayerStep", async (player, cancel) => {
   if (explorableId !== undefined)
   {
     const targetLoc = {x:0,y:0};
+    let explorable = storage.explorables[explorableId];
+    const blueprint = blueprints[explorable.type];
     if (obj.private.structureId === "exit")
     {
-      targetLoc.x = storage.explorables[explorableId].exitToX;
-      targetLoc.y = storage.explorables[explorableId].exitToY;
+      targetLoc.x = explorable.exitToX;
+      targetLoc.y = explorable.exitToY;
       player.private.explorableId = undefined;
+      --explorable.playerCount;
+      if (explorable.playerCount < 0)
+      {
+        explorable.playerCount = 0;
+      }
+      emit("explorables", "exiting", explorable);
     }
     else
     {
-      targetLoc.x = storage.explorables[explorableId].entranceX;
-      targetLoc.y = storage.explorables[explorableId].entranceY;
-      player.private.explorableId = explorableId;
+      if (blueprint.resetTimer && !explorable.resetAt)
+      {
+        explorable.resetAt = Date.now() + blueprint.resetTimer;
+      }
+
+      if (explorable.playerCount === 0
+        && blueprint.resetTimer
+        && explorable.resetAt > Date.now()
+      ) {
+        explorable.resetAt = Date.now() + blueprint.resetTimer;
+        obj.private.explorableId = await generateExplorable(obj, blueprint);
+        explorable = storage.explorables[obj.private.explorableId];
+        deleteExplorable(explorableId);
+      }
+      targetLoc.x = explorable.entranceX;
+      targetLoc.y = explorable.entranceY;
+      player.private.explorableId = obj.private.explorableId;
+      emit("explorables", "entering", explorable);
+      ++explorable.playerCount;
     }
 
     const chunkTarget = chunks.toChunkCoords(targetLoc.x, targetLoc.y);
